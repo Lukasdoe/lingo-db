@@ -9,6 +9,7 @@ include "mlir/Interfaces/InferTypeOpInterface.td"
 include "mlir/Interfaces/LoopLikeInterface.td"
 include "lingodb/compiler/Dialect/DB/IR/DBInterfaces.td"
 include "lingodb/compiler/Dialect/RelAlg/IR/RelAlgInterfaces.td"
+include "lingodb/compiler/Dialect/Arrow/IR/ArrowBase.td"
 
 //===----------------------------------------------------------------------===//
 // DB dialect definition.
@@ -375,6 +376,14 @@ def CastOp : DB_Op<"cast",[DB_NeedsNullWrap,DB_MaySupportInvalidValues,Pure]> {
     let arguments = (ins NullableDBType:$val);
     let results = (outs NullableDBType:$res);
     let assemblyFormat = "$val `:` type($val) `->` type($res) attr-dict";
+    let hasFolder = 1;
+}
+def LoadArrowOp : DB_Op<"arrow.load"> {
+    let summary = "loads value from ";
+
+    let arguments = (ins Arrow_Array:$array, Index: $offset);
+    let results = (outs NullableDBType:$res);
+    let assemblyFormat = "$array `,` $offset `->` type($res) attr-dict";
     let hasFolder = 1;
 }
 

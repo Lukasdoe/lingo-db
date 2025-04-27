@@ -594,57 +594,57 @@ class NullOpLowering : public OpConversionPattern<db::NullOp> {
 };
 
 class ConstantLowering : public OpConversionPattern<db::ConstantOp> {
-   static std::tuple<arrow::Type::type, uint32_t, uint32_t> convertTypeToArrow(mlir::Type type) {
-      arrow::Type::type typeConstant = arrow::Type::type::NA;
+   static std::tuple<::arrow::Type::type, uint32_t, uint32_t> convertTypeToArrow(mlir::Type type) {
+      ::arrow::Type::type typeConstant = ::arrow::Type::type::NA;
       uint32_t param1 = 0, param2 = 0;
       if (isIntegerType(type, 1)) {
-         typeConstant = arrow::Type::type::BOOL;
+         typeConstant = ::arrow::Type::type::BOOL;
       } else if (auto intWidth = getIntegerWidth(type, false)) {
          switch (intWidth) {
-            case 8: typeConstant = arrow::Type::type::INT8; break;
-            case 16: typeConstant = arrow::Type::type::INT16; break;
-            case 32: typeConstant = arrow::Type::type::INT32; break;
-            case 64: typeConstant = arrow::Type::type::INT64; break;
+            case 8: typeConstant = ::arrow::Type::type::INT8; break;
+            case 16: typeConstant = ::arrow::Type::type::INT16; break;
+            case 32: typeConstant = ::arrow::Type::type::INT32; break;
+            case 64: typeConstant = ::arrow::Type::type::INT64; break;
          }
       } else if (auto uIntWidth = getIntegerWidth(type, true)) {
          switch (uIntWidth) {
-            case 8: typeConstant = arrow::Type::type::UINT8; break;
-            case 16: typeConstant = arrow::Type::type::UINT16; break;
-            case 32: typeConstant = arrow::Type::type::UINT32; break;
-            case 64: typeConstant = arrow::Type::type::UINT64; break;
+            case 8: typeConstant = ::arrow::Type::type::UINT8; break;
+            case 16: typeConstant = ::arrow::Type::type::UINT16; break;
+            case 32: typeConstant = ::arrow::Type::type::UINT32; break;
+            case 64: typeConstant = ::arrow::Type::type::UINT64; break;
          }
       } else if (auto decimalType = mlir::dyn_cast_or_null<db::DecimalType>(type)) {
-         typeConstant = arrow::Type::type::DECIMAL128;
+         typeConstant = ::arrow::Type::type::DECIMAL128;
          param1 = decimalType.getP();
          param2 = decimalType.getS();
       } else if (auto floatType = mlir::dyn_cast_or_null<mlir::FloatType>(type)) {
          switch (floatType.getWidth()) {
-            case 16: typeConstant = arrow::Type::type::HALF_FLOAT; break;
-            case 32: typeConstant = arrow::Type::type::FLOAT; break;
-            case 64: typeConstant = arrow::Type::type::DOUBLE; break;
+            case 16: typeConstant = ::arrow::Type::type::HALF_FLOAT; break;
+            case 32: typeConstant = ::arrow::Type::type::FLOAT; break;
+            case 64: typeConstant = ::arrow::Type::type::DOUBLE; break;
          }
       } else if (auto stringType = mlir::dyn_cast_or_null<db::StringType>(type)) {
-         typeConstant = arrow::Type::type::STRING;
+         typeConstant = ::arrow::Type::type::STRING;
       } else if (auto dateType = mlir::dyn_cast_or_null<db::DateType>(type)) {
          if (dateType.getUnit() == db::DateUnitAttr::day) {
-            typeConstant = arrow::Type::type::DATE32;
+            typeConstant = ::arrow::Type::type::DATE32;
          } else {
-            typeConstant = arrow::Type::type::DATE64;
+            typeConstant = ::arrow::Type::type::DATE64;
          }
       } else if (auto charType = mlir::dyn_cast_or_null<db::CharType>(type)) {
-         typeConstant = arrow::Type::type::FIXED_SIZE_BINARY;
+         typeConstant = ::arrow::Type::type::FIXED_SIZE_BINARY;
          param1 = charType.getBytes();
       } else if (auto intervalType = mlir::dyn_cast_or_null<db::IntervalType>(type)) {
          if (intervalType.getUnit() == db::IntervalUnitAttr::months) {
-            typeConstant = arrow::Type::type::INTERVAL_MONTHS;
+            typeConstant = ::arrow::Type::type::INTERVAL_MONTHS;
          } else {
-            typeConstant = arrow::Type::type::INTERVAL_DAY_TIME;
+            typeConstant = ::arrow::Type::type::INTERVAL_DAY_TIME;
          }
       } else if (auto timestampType = mlir::dyn_cast_or_null<db::TimestampType>(type)) {
-         typeConstant = arrow::Type::type::TIMESTAMP;
+         typeConstant = ::arrow::Type::type::TIMESTAMP;
          param1 = static_cast<uint32_t>(timestampType.getUnit());
       }
-      assert(typeConstant != arrow::Type::type::NA);
+      assert(typeConstant != ::arrow::Type::type::NA);
       return {typeConstant, param1, param2};
    }
 
@@ -1107,16 +1107,6 @@ void DBToStdLoweringPass::runOnOperation() {
    patterns.insert<SimpleTypeConversionPattern<mlir::func::ConstantOp>>(typeConverter, &getContext());
    patterns.insert<SimpleTypeConversionPattern<mlir::func::CallIndirectOp>>(typeConverter, &getContext());
    patterns.insert<SimpleTypeConversionPattern<mlir::arith::SelectOp>>(typeConverter, &getContext());
-   patterns.insert<SimpleTypeConversionPattern<dsa::GetRecord>>(typeConverter, &getContext());
-   patterns.insert<SimpleTypeConversionPattern<dsa::GetRecordBatchLen>>(typeConverter, &getContext());
-   patterns.insert<SimpleTypeConversionPattern<dsa::Append>>(typeConverter, &getContext());
-   patterns.insert<SimpleTypeConversionPattern<dsa::DownCast>>(typeConverter, &getContext());
-   patterns.insert<SimpleTypeConversionPattern<dsa::CreateDS>>(typeConverter, &getContext());
-   //patterns.insert<SimpleTypeConversionPattern<dsa::YieldOp>>(typeConverter, &getContext());
-   patterns.insert<SimpleTypeConversionPattern<dsa::CreateTable>>(typeConverter, &getContext());
-   patterns.insert<SimpleTypeConversionPattern<dsa::Concat>>(typeConverter, &getContext());
-   patterns.insert<SimpleTypeConversionPattern<dsa::FinishColumn>>(typeConverter, &getContext());
-   patterns.insert<SimpleTypeConversionPattern<dsa::SetResultOp>>(typeConverter, &getContext());
    patterns.insert<AtLowering>(typeConverter, &getContext());
    patterns.insert<AppendCBLowering>(typeConverter, &getContext());
    //patterns.insert<SimpleTypeConversionPattern<dsa::ForOp>>(typeConverter, &getContext());

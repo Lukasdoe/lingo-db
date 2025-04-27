@@ -130,7 +130,7 @@ add_subdirectory(src/compiler/Dialect/TupleStream)
 add_subdirectory(src/compiler/Dialect/SubOperator)
 
 add_subdirectory(src/compiler/Dialect/DB)
-add_subdirectory(src/compiler/Dialect/DSA)
+add_subdirectory(src/compiler/Dialect/Arrow)
 add_subdirectory(src/compiler/Dialect/util)
 
 add_subdirectory(src/compiler/Conversion/DBToStd)
