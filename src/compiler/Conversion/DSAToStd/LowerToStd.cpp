@@ -1,7 +1,7 @@
 #include "lingodb/compiler/Conversion/DSAToStd/DSAToStd.h"
 #include "lingodb/compiler/Conversion/UtilToLLVM/Passes.h"
-#include "lingodb/compiler/Dialect/DSA/IR/DSADialect.h"
-#include "lingodb/compiler/Dialect/DSA/IR/DSAOps.h"
+#include "lingodb/compiler/Dialect/Arrow/IR/ArrowDialect.h"
+#include "lingodb/compiler/Dialect/Arrow/IR/ArrowOps.h"
 #include "lingodb/compiler/Dialect/util/UtilDialect.h"
 #include "lingodb/compiler/Dialect/util/UtilOps.h"
 #include "mlir/Conversion/AffineToStandard/AffineToStandard.h"
@@ -25,7 +25,7 @@
 
 #include "lingodb/compiler/runtime/ExecutionContext.h"
 using namespace mlir;
-
+/*
 namespace {
 using namespace lingodb::compiler::dialect;
 class SetResultOpLowering : public OpConversionPattern<dsa::SetResultOp> {
@@ -48,16 +48,17 @@ class DownCastLowering : public OpConversionPattern<dsa::DownCast> {
    }
 };
 } // end anonymous namespace
-
+*/
+/*
 namespace {
-struct DSAToStdLoweringPass
-   : public PassWrapper<DSAToStdLoweringPass, OperationPass<ModuleOp>> {
-   MLIR_DEFINE_EXPLICIT_INTERNAL_INLINE_TYPE_ID(DSAToStdLoweringPass)
-   virtual llvm::StringRef getArgument() const override { return "lower-dsa"; }
+struct ArrowToStdLoweringPass
+   : public PassWrapper<ArrowToStdLoweringPass, OperationPass<ModuleOp>> {
+   MLIR_DEFINE_EXPLICIT_INTERNAL_INLINE_TYPE_ID(ArrowToStdLoweringPass)
+   virtual llvm::StringRef getArgument() const override { return "lower-arrow"; }
 
-   DSAToStdLoweringPass() {}
+   ArrowToStdLoweringPass() {}
    void getDependentDialects(DialectRegistry& registry) const override {
-      registry.insert<LLVM::LLVMDialect, dsa::DSADialect, scf::SCFDialect, mlir::cf::ControlFlowDialect, util::UtilDialect, memref::MemRefDialect, arith::ArithDialect>();
+      registry.insert<LLVM::LLVMDialect, arrow::ArrowDialect, scf::SCFDialect, mlir::cf::ControlFlowDialect, util::UtilDialect, memref::MemRefDialect, arith::ArithDialect>();
    }
    void runOnOperation() final;
 };
@@ -201,6 +202,7 @@ void DSAToStdLoweringPass::runOnOperation() {
       signalPassFailure();
 }
 
-std::unique_ptr<mlir::Pass> lingodb::compiler::dialect::dsa::createLowerToStdPass() {
-   return std::make_unique<DSAToStdLoweringPass>();
+std::unique_ptr<mlir::Pass> lingodb::compiler::dialect::arrow::createLowerToStdPass() {
+   return std::make_unique<ArrowToStdLoweringPass>();
 }
+ */

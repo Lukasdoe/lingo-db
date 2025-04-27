@@ -1,4 +1,4 @@
-#include "lingodb/compiler/Dialect/DSA/IR/DSAOps.h"
+#include "lingodb/compiler/Dialect/Arrow/IR/ArrowOps.h"
 #include "lingodb/compiler/Dialect/util/UtilOps.h"
 #include "lingodb/compiler/runtime/ArrowColumn.h"
 #include "lingodb/compiler/runtime/ArrowTable.h"

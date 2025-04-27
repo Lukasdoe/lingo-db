@@ -830,26 +830,30 @@ class TableRefGatherOpLowering : public SubOpTupleStreamConsumerConversionPatter
       auto refType = gatherOp.getRef().getColumn().type;
       if (!mlir::isa<subop::TableEntryRefType>(refType)) { return failure(); }
       auto columns = mlir::cast<subop::TableEntryRefType>(refType).getMembers();
-      auto currRow = mapping.resolve(gatherOp, gatherOp.getRef());
+      auto tableRefVal = mapping.resolve(gatherOp, gatherOp.getRef());
+      auto unPacked= rewriter.create<util::UnPackOp>(gatherOp->getLoc(), tableRefVal);
+      auto currRow = unPacked.getResult(0);
       for (size_t i = 0; i < columns.getTypes().size(); i++) {
          auto memberName = mlir::cast<mlir::StringAttr>(columns.getNames()[i]).str();
          if (gatherOp.getMapping().contains(memberName)) {
             auto columnDefAttr = mlir::cast<tuples::ColumnDefAttr>(gatherOp.getMapping().get(memberName));
+            auto colArray= unPacked.getResult(i + 1);
             auto type = columnDefAttr.getColumn().type;
-            size_t accessOffset = i;
+            /*size_t accessOffset = i;
             std::vector<mlir::Type> types;
             types.push_back(getBaseType(type));
             if (mlir::isa<db::NullableType>(type)) {
                types.push_back(rewriter.getI1Type());
-            }
-            auto atOp = rewriter.create<dsa::At>(gatherOp->getLoc(), types, currRow, accessOffset);
-            if (mlir::isa<db::NullableType>(type)) {
+            }*/
+            mlir::Value loaded = rewriter.create<db::LoadArrowOp>(gatherOp->getLoc(), type, colArray, currRow);
+            mapping.define(columnDefAttr, loaded);
+            /*if (mlir::isa<db::NullableType>(type)) {
                mlir::Value isNull = rewriter.create<db::NotOp>(gatherOp->getLoc(), atOp.getValid());
                mlir::Value val = rewriter.create<db::AsNullableOp>(gatherOp->getLoc(), type, atOp.getVal(), isNull);
                mapping.define(columnDefAttr, val);
             } else {
                mapping.define(columnDefAttr, atOp.getVal());
-            }
+            }*/
          }
       }
       rewriter.replaceTupleStream(gatherOp, mapping);
@@ -1366,14 +1370,6 @@ class CreateArrayLowering : public SubOpConversionPattern<subop::CreateArrayOp> 
    }
 };
 
-class SetResultOpLowering : public SubOpConversionPattern<subop::SetResultOp> {
-   public:
-   using SubOpConversionPattern<subop::SetResultOp>::SubOpConversionPattern;
-   LogicalResult matchAndRewrite(subop::SetResultOp setResultOp, OpAdaptor adaptor, SubOpRewriter& rewriter) const override {
-      rewriter.replaceOpWithNewOp<dsa::SetResultOp>(setResultOp, setResultOp.getResultId(), adaptor.getState());
-      return mlir::success();
-   }
-};
 
 class CreateSegmentTreeViewLowering : public SubOpConversionPattern<subop::CreateSegmentTreeView> {
    public:
@@ -2085,6 +2081,7 @@ class ScanListLowering : public SubOpConversionPattern<subop::ScanListOp> {
       return success();
    }
 };
+/*
 class ScanExternalHashIndexListLowering : public SubOpConversionPattern<subop::ScanListOp> {
    public:
    using SubOpConversionPattern<subop::ScanListOp>::SubOpConversionPattern;
@@ -2162,6 +2159,7 @@ class ScanExternalHashIndexListLowering : public SubOpConversionPattern<subop::S
       return success();
    }
 };
+ */
 class ScanMultiMapListLowering : public SubOpConversionPattern<subop::ScanListOp> {
    public:
    using SubOpConversionPattern<subop::ScanListOp>::SubOpConversionPattern;
@@ -3144,6 +3142,7 @@ class HashMultiMapRefGatherOpLowering : public SubOpTupleStreamConsumerConversio
       return success();
    }
 };
+/*
 class ExternalHashIndexRefGatherOpLowering : public SubOpTupleStreamConsumerConversionPattern<subop::GatherOp, 2> {
    public:
    using SubOpTupleStreamConsumerConversionPattern<subop::GatherOp, 2>::SubOpTupleStreamConsumerConversionPattern;
@@ -3180,6 +3179,7 @@ class ExternalHashIndexRefGatherOpLowering : public SubOpTupleStreamConsumerConv
       return success();
    }
 };
+ */
 
 static bool checkAtomicStore(mlir::Operation* op) {
    //on x86, stores are always atomic (if aligned)
@@ -3968,9 +3968,9 @@ void handleExecutionStepCPU(subop::ExecutionStepOp step, subop::ExecutionGroupOp
    rewriter.insertPattern<HashMultiMapScatterOp>(typeConverter, ctxt);
 
    // ExternalHashIndex
-   rewriter.insertPattern<ScanExternalHashIndexListLowering>(typeConverter, ctxt);
+   //rewriter.insertPattern<ScanExternalHashIndexListLowering>(typeConverter, ctxt);
    rewriter.insertPattern<LookupExternalHashIndexLowering>(typeConverter, ctxt);
-   rewriter.insertPattern<ExternalHashIndexRefGatherOpLowering>(typeConverter, ctxt);
+   //rewriter.insertPattern<ExternalHashIndexRefGatherOpLowering>(typeConverter, ctxt);
 
    //SortedView
    rewriter.insertPattern<SortLowering>(typeConverter, ctxt);
@@ -4221,7 +4221,10 @@ void SubOpToControlFlowLoweringPass::runOnOperation() {
    });
    getOperation()->walk([&](subop::SetResultOp setResultOp) {
       mlir::OpBuilder builder(setResultOp);
-      builder.create<dsa::SetResultOp>(setResultOp->getLoc(), setResultOp.getResultId(), setResultOp.getState());
+      mlir::Value idVal= builder.create<mlir::arith::ConstantIntOp>(setResultOp.getLoc(), setResultOp.getResultId(), mlir::IntegerType::get(builder.getContext(), 32));
+      lingodb::compiler::runtime::ExecutionContext::setResult(builder, setResultOp->getLoc())({idVal, setResultOp.getState()});
+
+
       toRemove.push_back(setResultOp);
    });
    for (auto* op : toRemove) {
