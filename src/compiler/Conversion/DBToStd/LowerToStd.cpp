@@ -4,7 +4,7 @@
 #include "lingodb/compiler/Dialect/DB/IR/DBOps.h"
 #include "lingodb/compiler/Dialect/DB/IR/RuntimeFunctions.h"
 #include "lingodb/compiler/Dialect/DB/Passes.h"
-#include "lingodb/compiler/Dialect/DSA/IR/DSADialect.h"
+//#include "lingodb/compiler/Dialect/DSA/IR/DSADialect.h"
 #include "lingodb/compiler/Dialect/DSA/IR/DSAOps.h"
 #include "lingodb/compiler/Dialect/util/FunctionHelper.h"
 #include "lingodb/compiler/Dialect/util/UtilDialect.h"
