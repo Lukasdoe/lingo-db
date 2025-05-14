@@ -172,7 +172,7 @@ class DefaultImperativeLowering : public LoweringStep {
       mlir::PassManager lowerDSAPm(moduleOp->getContext());
       lowerDSAPm.enableVerifier(verify);
       addLingoDBInstrumentation(lowerDSAPm, getSerializationState());
-      lowerDSAPm.addPass(dsa::createLowerToStdPass());
+      //lowerDSAPm.addPass(dsa::createLowerToStdPass());
       lowerDSAPm.addPass(mlir::createCanonicalizerPass());
       lowerDSAPm.addPass(mlir::createLoopInvariantCodeMotionPass());
       lowerDSAPm.addPass(mlir::createCSEPass());

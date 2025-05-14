@@ -155,7 +155,7 @@ set(LIBS
         MLIRSubOperator
         MLIRUtil
         MLIRDB
-        MLIRDSA
+        MLIRArrow
         MLIRIR
         MLIRParser
         MLIRPass

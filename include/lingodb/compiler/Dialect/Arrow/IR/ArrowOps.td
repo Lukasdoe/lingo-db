@@ -36,5 +36,19 @@ def Arrow_LoadVariableSizeBinaryOp : Arrow_Op<"array.load_variable_size_binary">
     let results = (outs I32:$length, RefType : $ptr);
     let assemblyFormat = " $array `,` $offset `->` type($ptr) attr-dict";
 }
+def Arrow_AppendIntOp : Arrow_Op<"array_builder.append_int"> {
+    let summary = "";
+    let arguments = (ins Arrow_ArrayBuilder:$builder, AnyInteger: $value, Optional<I1>: $valid);
+    let assemblyFormat = " $builder `,` $value `:` type($value) ( `,` $valid^ )? attr-dict";
+}
+
+//todo: maybe better integration/abstraction
+def Arrow_BuilderFromPtr : Arrow_Op<"array_builder.from_ptr"> {
+    let summary = "";
+    let arguments = (ins RefType:$ptr);
+    let results = (outs Arrow_ArrayBuilder : $builder);
+
+    let assemblyFormat = " $ptr `->` type($builder) attr-dict";
+}
 
 #endif// OPS

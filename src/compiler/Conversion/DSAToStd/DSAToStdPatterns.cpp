@@ -7,7 +7,7 @@
 #include "mlir/Dialect/SCF/IR/SCF.h"
 #include "mlir/IR/IRMapping.h"
 #include "mlir/Transforms/DialectConversion.h"
-
+/*
 using namespace mlir;
 namespace {
 using namespace lingodb::compiler::dialect;
@@ -577,3 +577,4 @@ void populateDSAToStdPatterns(mlir::TypeConverter& typeConverter, mlir::RewriteP
    patterns.insert<ColumnnBuilderConcat, CBAppendLowering, ColumnnBuilderFinish, CreateColumnBuilderLowering, CreateTableLowering, ArrowTypeToLowering, ArrowTypeFromLowering, AtLowering, GetRecordBatchLenLowering, GetRecordLowering>(typeConverter, patterns.getContext());
 }
 } // end namespace lingodb::compiler::dialect::dsa
+*/

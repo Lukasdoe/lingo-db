@@ -201,9 +201,9 @@ void access(std::vector<size_t> colIds, lingodb::runtime::RecordBatchInfo* info,
    auto currChunk = chunk.data();
    for (size_t i = 0; i < colIds.size(); i++) {
       auto colId = colIds[i];
-      auto& colInfo = info->columnInfo[i];
-      colInfo = chunk.getColumnInfo(colId);
-      colInfo.offset += offset;
+      auto* colInfo = info->columnInfos[i];
+      *colInfo = chunk.getColumnInfo(colId);
+      colInfo->offset += offset;
    }
    info->numRows = std::min(static_cast<size_t>(currChunk->num_rows() - offset), numRows);
 }
@@ -341,6 +341,7 @@ class ScanBatchesTask : public lingodb::scheduler::TaskWithImplicitContext {
    public:
    ScanBatchesTask(std::vector<lingodb::runtime::LingoDBTable::TableChunk>& batches, std::vector<size_t> colIds, const std::function<void(lingodb::runtime::RecordBatchInfo*)>& cb) : batches(batches), colIds(colIds), cb(cb) {
       for (size_t i = 0; i < lingodb::scheduler::getNumWorkers(); i++) {
+         //todo: now works differently
          batchInfos.push_back(reinterpret_cast<lingodb::runtime::RecordBatchInfo*>(malloc(sizeof(lingodb::runtime::RecordBatchInfo) + sizeof(lingodb::runtime::ColumnInfo) * colIds.size())));
          workerResvs.emplace_back(std::make_unique<BatchesWorkerResvState>());
       }

@@ -35,6 +35,7 @@ def Arrow_Array : Arrow_Type<"Array","array"> {
 
 def Arrow_ArrayBuilder : Arrow_Type<"ArrayBuilder","arraybuilder"> {
     let summary = "arrow array builder type";
+    //todo: should we name this chunked array builder?
 }
 
 #endif// LINGODB_DIALECT_Arrow_IR_OPS

@@ -156,7 +156,7 @@ void HashIndexIteration::consumeRecordBatch(lingodb::runtime::RecordBatchInfo* i
    info->numRows = 1;
    for (size_t i = 0; i != access.colIds.size(); ++i) {
       auto colId = access.colIds[i];
-      auto* colInfo = &info->columnInfo[i];
+      auto* colInfo = info->columnInfos[i];
       std::memcpy(colInfo, &tableChunk->getColumnInfo(colId), sizeof(ColumnInfo));
       colInfo->offset += offset;
    }

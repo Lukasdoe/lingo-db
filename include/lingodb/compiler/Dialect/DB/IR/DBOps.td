@@ -379,12 +379,17 @@ def CastOp : DB_Op<"cast",[DB_NeedsNullWrap,DB_MaySupportInvalidValues,Pure]> {
     let hasFolder = 1;
 }
 def LoadArrowOp : DB_Op<"arrow.load"> {
-    let summary = "loads value from ";
+    let summary = "loads value from arrow array";
 
     let arguments = (ins Arrow_Array:$array, Index: $offset);
     let results = (outs NullableDBType:$res);
     let assemblyFormat = "$array `,` $offset `->` type($res) attr-dict";
-    let hasFolder = 1;
+}
+
+def AppendArrowOp : DB_Op<"arrow.append"> {
+    let summary = "append value to arrow array ";
+    let arguments = (ins Arrow_ArrayBuilder:$builder, NullableDBType:$value); //todo: add valid flag, or is nullable type enough?
+    let assemblyFormat = "$builder `,` $value `->` type($value) attr-dict";
 }
 
 #endif// OPS

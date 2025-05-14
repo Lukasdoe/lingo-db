@@ -4,8 +4,8 @@
 #include "lingodb/compiler/Dialect/DB/IR/DBOps.h"
 #include "lingodb/compiler/Dialect/DB/IR/RuntimeFunctions.h"
 #include "lingodb/compiler/Dialect/DB/Passes.h"
-//#include "lingodb/compiler/Dialect/DSA/IR/DSADialect.h"
-#include "lingodb/compiler/Dialect/DSA/IR/DSAOps.h"
+#include "lingodb/compiler/Dialect/Arrow/IR/ArrowDialect.h"
+#include "lingodb/compiler/Dialect/Arrow/IR/ArrowOps.h"
 #include "lingodb/compiler/Dialect/util/FunctionHelper.h"
 #include "lingodb/compiler/Dialect/util/UtilDialect.h"
 #include "lingodb/compiler/Dialect/util/UtilOps.h"
@@ -75,6 +75,7 @@ class SimpleTypeConversionPattern : public ConversionPattern {
       return success();
    }
 };
+/*
 mlir::Type convertPhysicalSingle(mlir::Type t, const TypeConverter& typeConverter) {
    MLIRContext* ctxt = t.getContext();
    mlir::Type arrowPhysicalType = typeConverter.convertType(t);
@@ -110,67 +111,56 @@ mlir::Type convertPhysicalSingle(mlir::Type t, const TypeConverter& typeConverte
    }
    return arrowPhysicalType;
 };
-class AtLowering : public OpConversionPattern<dsa::At> {
+*/
+class LoadArrowOpLowering : public OpConversionPattern<db::LoadArrowOp> {
    public:
-   using OpConversionPattern<dsa::At>::OpConversionPattern;
-   LogicalResult matchAndRewrite(dsa::At atOp, OpAdaptor adaptor, ConversionPatternRewriter& rewriter) const override {
-      auto loc = atOp->getLoc();
-      auto t = atOp.getType(0);
-      if (typeConverter->isLegal(t)) {
-         rewriter.startOpModification(atOp);
-         atOp->setOperands(adaptor.getOperands());
-         rewriter.finalizeOpModification(atOp);
-         return mlir::success();
+   using OpConversionPattern<db::LoadArrowOp>::OpConversionPattern;
+   LogicalResult matchAndRewrite(db::LoadArrowOp loadArrowOp, OpAdaptor adaptor, ConversionPatternRewriter& rewriter) const override {
+      auto loc = loadArrowOp->getLoc();
+      auto nullableType = mlir::dyn_cast_or_null<db::NullableType>(loadArrowOp.getType());
+      auto baseType = nullableType ? nullableType.getType() : loadArrowOp.getType();
+      mlir::Value loaded;
+      auto array = adaptor.getArray();
+      auto offset = adaptor.getOffset();
+      //todo: add logic for other types (temporarily: also for some basic types, but especially high-level types defined by DB dialect)
+      if (baseType.isInteger()) {
+         loaded = rewriter.create<lingodb::compiler::dialect::arrow::LoadIntOp>(loc, baseType, array, offset);
+      } else {
+         return mlir::failure();
       }
-      mlir::Type arrowPhysicalType = convertPhysicalSingle(t, *typeConverter);
-      llvm::SmallVector<mlir::Type> types;
-      types.push_back(arrowPhysicalType);
-      if (atOp.getValid()) {
-         types.push_back(rewriter.getI1Type());
+
+      if (nullableType) {
+         auto isValid = rewriter.create<lingodb::compiler::dialect::arrow::IsValidOp>(loc, array, offset);
+         mlir::Value isNull = rewriter.create<db::NotOp>(loc, isValid);
+         rewriter.replaceOpWithNewOp<util::PackOp>(loadArrowOp, mlir::ValueRange{isNull, loaded});
+      } else {
+         rewriter.replaceOp(loadArrowOp, loaded);
       }
-      std::vector<mlir::Value> values;
-      auto newAtOp = rewriter.create<dsa::At>(loc, types, adaptor.getCollection(), atOp.getPos());
-      mlir::Value nativeValue = newAtOp.getVal();
-      if (typeConverter->convertType(t) != nativeValue.getType()) {
-         nativeValue = rewriter.create<dsa::ArrowTypeTo>(loc, typeConverter->convertType(t), nativeValue);
-      }
-      values.push_back(nativeValue);
-      if (atOp.getValid()) {
-         values.push_back(newAtOp.getValid());
-      }
-      rewriter.replaceOp(atOp, values);
       return success();
    }
 };
 
-class AppendCBLowering : public ConversionPattern {
+class AppendArrowLowering : public OpConversionPattern<db::AppendArrowOp> {
    public:
-   explicit AppendCBLowering(TypeConverter& typeConverter, MLIRContext* context)
-      : ConversionPattern(typeConverter, dsa::Append::getOperationName(), 2, context) {}
-
-   LogicalResult matchAndRewrite(Operation* op, ArrayRef<Value> operands, ConversionPatternRewriter& rewriter) const override {
-      auto loc = op->getLoc();
-      dsa::AppendAdaptor adaptor(operands);
-      auto appendOp = mlir::cast<dsa::Append>(op);
-      if (!mlir::isa<dsa::ColumnBuilderType>(appendOp.getDs().getType())) {
-         return mlir::failure();
+   using OpConversionPattern<db::AppendArrowOp>::OpConversionPattern;
+   LogicalResult matchAndRewrite(db::AppendArrowOp appendArrowOp, OpAdaptor adaptor, ConversionPatternRewriter& rewriter) const override {
+      auto loc = appendArrowOp->getLoc();
+      auto nullableType = mlir::dyn_cast_or_null<db::NullableType>(appendArrowOp.getValue().getType());
+      auto builder = adaptor.getBuilder();
+      mlir::Value value = adaptor.getValue();
+      auto baseType = nullableType ? nullableType.getType() : appendArrowOp.getValue().getType();
+      mlir::Value valid;
+      if (nullableType) {
+         auto res = rewriter.create<util::UnPackOp>(loc, adaptor.getValue());
+         valid = res.getResult(0);
+         value = res.getResult(1);
       }
-      auto t = appendOp.getVal().getType();
-      if (typeConverter->isLegal(t)) {
-         rewriter.startOpModification(op);
-         appendOp->setOperands(operands);
-         rewriter.finalizeOpModification(op);
-         return mlir::success();
+      //todo: also support more base types here
+      if (baseType.isInteger()) {
+         rewriter.create<lingodb::compiler::dialect::arrow::AppendIntOp>(loc, builder, value, valid);
+      } else {
+         return failure();
       }
-      mlir::Type arrowPhysicalType = convertPhysicalSingle(t, *typeConverter);
-
-      mlir::Value val = adaptor.getVal();
-      if (val.getType() != arrowPhysicalType) {
-         val = rewriter.create<dsa::ArrowTypeFrom>(loc, arrowPhysicalType, val);
-      }
-      rewriter.create<dsa::Append>(loc, adaptor.getDs(), val, adaptor.getValid());
-
-      rewriter.eraseOp(op);
       return success();
    }
 };
@@ -1043,7 +1033,7 @@ void DBToStdLoweringPass::runOnOperation() {
    });
    auto opIsWithoutDBTypes = [&](Operation* op) { return !hasDBType(typeConverter, op->getOperandTypes()) && !hasDBType(typeConverter, op->getResultTypes()); };
    target.addDynamicallyLegalDialect<scf::SCFDialect>(opIsWithoutDBTypes);
-   target.addDynamicallyLegalDialect<dsa::DSADialect>(opIsWithoutDBTypes);
+   target.addDynamicallyLegalDialect<lingodb::compiler::dialect::arrow::ArrowDialect>(opIsWithoutDBTypes);
    target.addDynamicallyLegalDialect<arith::ArithDialect>(opIsWithoutDBTypes);
 
    target.addLegalDialect<cf::ControlFlowDialect>();
@@ -1075,7 +1065,7 @@ void DBToStdLoweringPass::runOnOperation() {
       return convertTuple(tupleType, typeConverter);
    });
 
-   auto convertPhysical = [&](mlir::TupleType tuple) -> mlir::TupleType {
+   /*auto convertPhysical = [&](mlir::TupleType tuple) -> mlir::TupleType {
       std::vector<mlir::Type> types;
       for (auto t : tuple.getTypes()) {
          mlir::Type arrowPhysicalType = convertPhysicalSingle(t, typeConverter);
@@ -1095,8 +1085,8 @@ void DBToStdLoweringPass::runOnOperation() {
    });
    typeConverter.addConversion([&](dsa::ColumnType r) {
       return dsa::ColumnType::get(r.getContext(), convertPhysicalSingle(r.getType(), typeConverter));
-   });
-   typeConverter.addConversion([&](dsa::TableType r) { return dsa::TableType::get(r.getContext(), convertPhysical(r.getRowType())); });
+   });*/
+   //typeConverter.addConversion([&](dsa::TableType r) { return dsa::TableType::get(r.getContext(), convertPhysical(r.getRowType())); });
    RewritePatternSet patterns(&getContext());
 
    mlir::populateFunctionOpInterfaceTypeConversionPattern<mlir::func::FuncOp>(patterns, typeConverter);
@@ -1107,8 +1097,8 @@ void DBToStdLoweringPass::runOnOperation() {
    patterns.insert<SimpleTypeConversionPattern<mlir::func::ConstantOp>>(typeConverter, &getContext());
    patterns.insert<SimpleTypeConversionPattern<mlir::func::CallIndirectOp>>(typeConverter, &getContext());
    patterns.insert<SimpleTypeConversionPattern<mlir::arith::SelectOp>>(typeConverter, &getContext());
-   patterns.insert<AtLowering>(typeConverter, &getContext());
-   patterns.insert<AppendCBLowering>(typeConverter, &getContext());
+   patterns.insert<LoadArrowOpLowering>(typeConverter, &getContext());
+   patterns.insert<AppendArrowLowering>(typeConverter, &getContext());
    //patterns.insert<SimpleTypeConversionPattern<dsa::ForOp>>(typeConverter, &getContext());
    patterns.insert<StringCmpOpLowering>(typeConverter, ctxt);
    patterns.insert<CharCmpOpLowering>(typeConverter, ctxt);

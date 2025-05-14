@@ -2940,7 +2940,7 @@ void RelalgToSubOpLoweringPass::runOnOperation() {
    target.addIllegalDialect<relalg::RelAlgDialect>();
    target.addLegalDialect<subop::SubOperatorDialect>();
    target.addLegalDialect<db::DBDialect>();
-   target.addLegalDialect<arrow::ArrowDialect>();
+   target.addLegalDialect<lingodb::compiler::dialect::arrow::ArrowDialect>();
 
    target.addLegalDialect<tuples::TupleStreamDialect>();
    target.addLegalDialect<func::FuncDialect>();
