@@ -150,15 +150,16 @@ void LingoDBHashIndex::setTable(catalog::LingoDBTableCatalogEntry* table) {
    tableStorage = dynamic_cast<LingoDBTable*>(&table->getTableStorage());
 }
 
-void HashIndexIteration::consumeRecordBatch(lingodb::runtime::RecordBatchInfo* info) {
+void HashIndexIteration::consumeRecordBatch(lingodb::runtime::BatchView* batchView) {
    auto currRowId = current->rowId;
    auto [tableChunk, offset] = access.hashIndex.tableStorage->getByRowId(currRowId);
-   info->numRows = 1;
+   batchView->length = 1;
    for (size_t i = 0; i != access.colIds.size(); ++i) {
+      //todo
       auto colId = access.colIds[i];
-      auto* colInfo = info->columnInfos[i];
-      std::memcpy(colInfo, &tableChunk->getColumnInfo(colId), sizeof(ColumnInfo));
-      colInfo->offset += offset;
+      //auto* colInfo = info->columnInfos[i];
+      //std::memcpy(colInfo, &tableChunk->getColumnInfo(colId), sizeof(ColumnInfo));
+      //colInfo->offset += offset;
    }
    current = current->next;
 }
@@ -184,4 +185,7 @@ std::unique_ptr<LingoDBHashIndex> LingoDBHashIndex::deserialize(lingodb::utility
    auto indexedColumns = deserializer.readProperty<std::vector<std::string>>(1);
    return std::make_unique<LingoDBHashIndex>(filename, indexedColumns);
 }
+
+HashIndexIteration::HashIndexIteration(HashIndexAccess& access, size_t hash, LingoDBHashIndex::Entry* current) : access(access), hash(hash), current(current) {}
+
 } // end namespace lingodb::runtime

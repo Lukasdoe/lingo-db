@@ -1085,8 +1085,8 @@ class MergeThreadLocalResultTable : public SubOpConversionPattern<subop::MergeOp
             auto rightBuilders = rewriter.create<util::UnPackOp>(loc, rightLoaded);
             std::vector<mlir::Value> results;
             for (size_t i = 0; i < leftBuilders.getNumResults(); i++) {
-               mlir::Value concatenated = rt::ArrowColumnBuilder::merge(rewriter, loc)({leftBuilders.getResults()[i], rightBuilders.getResults()[i]})[0];
-               results.push_back(concatenated);
+               rt::ArrowColumnBuilder::merge(rewriter, loc)({leftBuilders.getResults()[i], rightBuilders.getResults()[i]});
+               results.push_back(leftBuilders.getResults()[i]);
             }
             auto packed = rewriter.create<util::PackOp>(loc, results);
             rewriter.create<util::StoreOp>(loc, packed, leftPtr, mlir::Value());

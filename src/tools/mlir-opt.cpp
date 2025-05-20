@@ -3,7 +3,7 @@
 #include "lingodb/compiler/Conversion/RelAlgToSubOp/RelAlgToSubOpPass.h"
 #include "lingodb/compiler/Conversion/SubOpToControlFlow/SubOpToControlFlowPass.h"
 #include "lingodb/compiler/Dialect/DB/IR/DBDialect.h"
-#include "lingodb/compiler/Dialect/DSA/IR/DSADialect.h"
+#include "lingodb/compiler/Dialect/Arrow/IR/ArrowDialect.h"
 #include "lingodb/compiler/Dialect/RelAlg/IR/RelAlgDialect.h"
 #include "lingodb/compiler/Dialect/RelAlg/Passes.h"
 #include "lingodb/compiler/Dialect/SubOperator/SubOperatorDialect.h"
@@ -51,9 +51,10 @@ int main(int argc, char** argv) {
    db::registerDBConversionPasses();
    subop::registerSubOpToControlFlowConversionPasses();
    subop::registerSubOpTransformations();
-   ::mlir::registerPass([]() -> std::unique_ptr<::mlir::Pass> {
+   //todo
+   /*::mlir::registerPass([]() -> std::unique_ptr<::mlir::Pass> {
       return dsa::createLowerToStdPass();
-   });
+   });*/
    ::mlir::registerPass([]() -> std::unique_ptr<::mlir::Pass> {
       return relalg::createDetachMetaDataPass();
    });
@@ -66,7 +67,7 @@ int main(int argc, char** argv) {
    registry.insert<tuples::TupleStreamDialect>();
    registry.insert<subop::SubOperatorDialect>();
    registry.insert<db::DBDialect>();
-   registry.insert<dsa::DSADialect>();
+   registry.insert<lingodb::compiler::dialect::arrow::ArrowDialect>();
    registry.insert<mlir::func::FuncDialect>();
    registry.insert<mlir::arith::ArithDialect>();
    registry.insert<mlir::DLTIDialect>();

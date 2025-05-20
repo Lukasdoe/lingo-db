@@ -161,6 +161,7 @@ class AppendArrowLowering : public OpConversionPattern<db::AppendArrowOp> {
       } else {
          return failure();
       }
+      rewriter.eraseOp(appendArrowOp);
       return success();
    }
 };

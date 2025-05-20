@@ -5,6 +5,7 @@
 
 #include <functional>
 #include <string>
+#include <lingodb/runtime/ArrowView.h>
 namespace lingodb::runtime {
 
 class LingoDBTable : public TableStorage {
@@ -13,7 +14,8 @@ class LingoDBTable : public TableStorage {
       std::shared_ptr<arrow::RecordBatch> internalData;
       size_t startRowId;
       size_t numRows;
-      std::vector<ColumnInfo> columnInfo;
+      std::vector<const void*> buffers;
+      std::vector<ArrayView> columnInfo;
 
       public:
       TableChunk(std::shared_ptr<arrow::RecordBatch> data, size_t startRowId);
@@ -21,8 +23,8 @@ class LingoDBTable : public TableStorage {
       const std::shared_ptr<arrow::RecordBatch>& data() const {
          return internalData;
       }
-      const ColumnInfo& getColumnInfo(size_t colId) const {
-         return columnInfo[colId];
+      ArrayView* getArrayView(size_t colId) {
+         return &columnInfo[colId];
       }
       size_t getNumRows() {
          return numRows;
