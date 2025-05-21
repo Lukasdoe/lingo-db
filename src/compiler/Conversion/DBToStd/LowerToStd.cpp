@@ -152,8 +152,9 @@ class AppendArrowLowering : public OpConversionPattern<db::AppendArrowOp> {
       mlir::Value valid;
       if (nullableType) {
          auto res = rewriter.create<util::UnPackOp>(loc, adaptor.getValue());
-         valid = res.getResult(0);
          value = res.getResult(1);
+         Value falseValue = rewriter.create<arith::ConstantOp>(loc, rewriter.getIntegerAttr(rewriter.getI1Type(), 0));
+         valid=rewriter.create<arith::CmpIOp>(loc, mlir::arith::CmpIPredicate::eq, res.getResult(0), falseValue);
       }
       //todo: also support more base types here
       if (baseType.isInteger()) {

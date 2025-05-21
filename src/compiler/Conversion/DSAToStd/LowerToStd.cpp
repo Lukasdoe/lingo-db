@@ -1,4 +1,4 @@
-#include "lingodb/compiler/Conversion/DSAToStd/DSAToStd.h"
+#include "lingodb/compiler/Conversion/ArrowToStd/ArrowToStd.h"
 #include "lingodb/compiler/Conversion/UtilToLLVM/Passes.h"
 #include "lingodb/compiler/Dialect/Arrow/IR/ArrowDialect.h"
 #include "lingodb/compiler/Dialect/Arrow/IR/ArrowOps.h"
@@ -24,32 +24,13 @@
 #include <mlir/IR/BuiltinTypes.h>
 
 #include "lingodb/compiler/runtime/ExecutionContext.h"
+
+#include <lingodb/compiler/runtime/ArrowColumn.h>
 using namespace mlir;
-/*
-namespace {
-using namespace lingodb::compiler::dialect;
-class SetResultOpLowering : public OpConversionPattern<dsa::SetResultOp> {
-   public:
-   using OpConversionPattern<dsa::SetResultOp>::OpConversionPattern;
-   LogicalResult matchAndRewrite(dsa::SetResultOp op, OpAdaptor adaptor, ConversionPatternRewriter& rewriter) const override {
-      std::vector<Type> types;
-      auto resultId = rewriter.create<mlir::arith::ConstantIntOp>(op->getLoc(), op.getResultId(), rewriter.getI32Type());
-      lingodb::compiler::runtime::ExecutionContext::setResult(rewriter, op->getLoc())({resultId, adaptor.getState()});
-      rewriter.eraseOp(op);
-      return success();
-   }
-};
-class DownCastLowering : public OpConversionPattern<dsa::DownCast> {
-   public:
-   using OpConversionPattern<dsa::DownCast>::OpConversionPattern;
-   LogicalResult matchAndRewrite(dsa::DownCast op, OpAdaptor adaptor, ConversionPatternRewriter& rewriter) const override {
-      rewriter.replaceOp(op, adaptor.getOperands());
-      return success();
-   }
-};
-} // end anonymous namespace
-*/
-/*
+namespace arrow = lingodb::compiler::dialect::arrow;
+namespace util = lingodb::compiler::dialect::util;
+namespace rt = lingodb::compiler::runtime;
+
 namespace {
 struct ArrowToStdLoweringPass
    : public PassWrapper<ArrowToStdLoweringPass, OperationPass<ModuleOp>> {
@@ -71,6 +52,86 @@ static TupleType convertTuple(TupleType tupleType, TypeConverter& typeConverter)
    }
    return TupleType::get(tupleType.getContext(), TypeRange(types));
 }
+class ArrayLoadIntLowering : public OpConversionPattern<arrow::LoadIntOp> {
+   public:
+   using OpConversionPattern<arrow::LoadIntOp>::OpConversionPattern;
+   LogicalResult matchAndRewrite(arrow::LoadIntOp op, OpAdaptor adaptor, ConversionPatternRewriter& rewriter) const override {
+      auto bufferArrayPtr = rewriter.create<util::TupleElementPtrOp>(op.getLoc(), util::RefType::get(util::RefType::get(util::RefType::get(rewriter.getI8Type()))), adaptor.getArray(), 5);
+      auto bufferArray = rewriter.create<util::LoadOp>(op.getLoc(), bufferArrayPtr);
+      //load buffer with main values (offset 1)
+      auto c1 = rewriter.create<arith::ConstantIndexOp>(op.getLoc(), 1);
+      auto buffer = rewriter.create<util::LoadOp>(op.getLoc(), bufferArray, c1);
+      auto casted = rewriter.create<util::GenericMemrefCastOp>(op.getLoc(), util::RefType::get(op.getType()), buffer);
+      rewriter.replaceOpWithNewOp<util::LoadOp>(op, casted, adaptor.getOffset());
+      return success();
+   }
+};
+static Value getBit(OpBuilder builder, Location loc, Value bits, Value pos) {
+   auto i1Type = IntegerType::get(builder.getContext(), 1);
+   auto i8Type = IntegerType::get(builder.getContext(), 8);
+
+   auto indexType = IndexType::get(builder.getContext());
+   Value const3 = builder.create<arith::ConstantOp>(loc, indexType, builder.getIntegerAttr(indexType, 3));
+   Value const7 = builder.create<arith::ConstantOp>(loc, indexType, builder.getIntegerAttr(indexType, 7));
+   Value const1Byte = builder.create<arith::ConstantOp>(loc, i8Type, builder.getIntegerAttr(i8Type, 1));
+
+   Value div8 = builder.create<arith::ShRUIOp>(loc, indexType, pos, const3);
+   Value rem8 = builder.create<arith::AndIOp>(loc, indexType, pos, const7);
+   Value loadedByte = builder.create<util::LoadOp>(loc, i8Type, bits, div8);
+   Value rem8AsByte = builder.create<arith::IndexCastOp>(loc, i8Type, rem8);
+   Value shifted = builder.create<arith::ShRUIOp>(loc, i8Type, loadedByte, rem8AsByte);
+   Value res1 = shifted;
+
+   Value anded = builder.create<arith::AndIOp>(loc, i8Type, res1, const1Byte);
+   Value res = builder.create<arith::CmpIOp>(loc, i1Type, mlir::arith::CmpIPredicate::eq, anded, const1Byte);
+   return res;
+}
+class ArrayIsValidLowering : public OpConversionPattern<arrow::IsValidOp> {
+   public:
+   using OpConversionPattern<arrow::IsValidOp>::OpConversionPattern;
+   LogicalResult matchAndRewrite(arrow::IsValidOp op, OpAdaptor adaptor, ConversionPatternRewriter& rewriter) const override {
+      auto bufferArrayPtr = rewriter.create<util::TupleElementPtrOp>(op.getLoc(), util::RefType::get(util::RefType::get(util::RefType::get(rewriter.getI8Type()))), adaptor.getArray(), 5);
+      auto bufferArray = rewriter.create<util::LoadOp>(op.getLoc(), bufferArrayPtr);
+      //load  validity buffer (offset 0)
+      auto c0 = rewriter.create<arith::ConstantIndexOp>(op.getLoc(), 0);
+      auto buffer = rewriter.create<util::LoadOp>(op.getLoc(), bufferArray, c0);
+      rewriter.replaceOp(op, getBit(rewriter, op.getLoc(), buffer, adaptor.getOffset()));
+      return success();
+   }
+};
+
+class BuilderFromPtrLowering : public OpConversionPattern<arrow::BuilderFromPtr> {
+   public:
+   using OpConversionPattern<arrow::BuilderFromPtr>::OpConversionPattern;
+   LogicalResult matchAndRewrite(arrow::BuilderFromPtr op, OpAdaptor adaptor, ConversionPatternRewriter& rewriter) const override {
+      rewriter.replaceOp(op, adaptor.getPtr());
+      return success();
+   }
+};
+class BuilderAppendIntLowering : public OpConversionPattern<arrow::AppendIntOp> {
+   public:
+   using OpConversionPattern<arrow::AppendIntOp>::OpConversionPattern;
+   LogicalResult matchAndRewrite(arrow::AppendIntOp op, OpAdaptor adaptor, ConversionPatternRewriter& rewriter) const override {
+      auto intType = op.getValue().getType();
+      auto loc = op.getLoc();
+      auto builderVal = adaptor.getBuilder();
+      auto isValid = adaptor.getValid();
+      if (!isValid) {
+         isValid = rewriter.create<mlir::arith::ConstantIntOp>(loc, 1, 1);
+      }
+      auto val = adaptor.getValue();
+      switch (intType.getWidth()) {
+         case 8: rt::ArrowColumnBuilder::addInt8(rewriter, loc)({builderVal, isValid, val}); break;
+         case 16: rt::ArrowColumnBuilder::addInt16(rewriter, loc)({builderVal, isValid, val}); break;
+         case 32: rt::ArrowColumnBuilder::addInt32(rewriter, loc)({builderVal, isValid, val}); break;
+         case 64: rt::ArrowColumnBuilder::addInt64(rewriter, loc)({builderVal, isValid, val}); break;
+         default: assert(false && "should not happen"); return failure();
+      }
+      rewriter.eraseOp(op);
+
+      return success();
+   }
+};
 } // end anonymous namespace
 template <class Op>
 class SimpleTypeConversionPattern : public ConversionPattern {
@@ -89,7 +150,7 @@ class SimpleTypeConversionPattern : public ConversionPattern {
       return success();
    }
 };
-void DSAToStdLoweringPass::runOnOperation() {
+void ArrowToStdLoweringPass::runOnOperation() {
    auto module = getOperation();
    getContext().getLoadedDialect<util::UtilDialect>()->getFunctionHelper().setParentModule(module);
    // Define Conversion Target
@@ -101,6 +162,7 @@ void DSAToStdLoweringPass::runOnOperation() {
 
    target.addLegalDialect<func::FuncDialect>();
    target.addLegalDialect<memref::MemRefDialect>();
+   target.addIllegalDialect<arrow::ArrowDialect>();
    TypeConverter typeConverter;
    typeConverter.addConversion([&](mlir::Type type) { return type; });
    static auto hasDSAType = [](TypeConverter& converter, TypeRange types) -> bool {
@@ -138,66 +200,30 @@ void DSAToStdLoweringPass::runOnOperation() {
    typeConverter.addConversion([&](mlir::TupleType tupleType) {
       return convertTuple(tupleType, typeConverter);
    });
-   typeConverter.addConversion([&](dsa::ColumnBuilderType tableType) {
+
+   typeConverter.addConversion([&](arrow::ArrayType arrayType) {
+      auto idxType = IndexType::get(ctxt);
+      auto bufferType = util::RefType::get(ctxt, mlir::IntegerType::get(ctxt, 8));
+      auto bufferArrayType = util::RefType::get(ctxt, bufferType);
+      //todo: childArrayType
+      return util::RefType::get(&getContext(), mlir::TupleType::get(ctxt, {idxType, idxType, idxType, idxType, idxType, bufferArrayType}));
+   });
+   typeConverter.addConversion([&](arrow::ArrayBuilderType builderType) {
       return util::RefType::get(&getContext(), IntegerType::get(&getContext(), 8));
-   });
-   typeConverter.addConversion([&](dsa::ColumnType tableType) {
-      return util::RefType::get(&getContext(), IntegerType::get(&getContext(), 8));
-   });
-   typeConverter.addConversion([&](dsa::TableType tableType) {
-      return util::RefType::get(&getContext(), IntegerType::get(&getContext(), 8));
-   });
-   typeConverter.addConversion([&](::dsa::ArrowFixedSizedBinaryType t) {
-      if (t.getByteWidth() > 8) return mlir::Type();
-      size_t bits = 0;
-      if (t.getByteWidth() == 1) {
-         bits = 8;
-      } else if (t.getByteWidth() == 2) {
-         bits = 16;
-      } else if (t.getByteWidth() <= 4) {
-         bits = 32;
-      } else {
-         bits = 64;
-      }
-      return (Type) mlir::IntegerType::get(ctxt, bits);
-   });
-   typeConverter.addConversion([&](dsa::ArrowStringType type) {
-      return util::VarLen32Type::get(&getContext());
-   });
-   typeConverter.addConversion([&](dsa::ArrowListType type) {
-      return util::BufferType::get(&getContext(), typeConverter.convertType(type.getType()));
-   });
-   typeConverter.addConversion([&](dsa::ArrowDecimalType type) {
-      return IntegerType::get(ctxt, 128);
-   });
-   typeConverter.addConversion([&](dsa::ArrowDate32Type t) {
-      return IntegerType::get(ctxt, 32);
-   });
-   typeConverter.addConversion([&](dsa::ArrowDate64Type t) {
-      return IntegerType::get(ctxt, 64);
-   });
-   typeConverter.addConversion([&](dsa::ArrowTimeStampType t) {
-      return IntegerType::get(ctxt, 64);
-   });
-   typeConverter.addConversion([&](dsa::ArrowMonthIntervalType t) {
-      return mlir::IntegerType::get(ctxt, 32);
-   });
-   typeConverter.addConversion([&](dsa::ArrowDayTimeIntervalType t) {
-      return mlir::IntegerType::get(ctxt, 64);
    });
    RewritePatternSet patterns(&getContext());
 
    mlir::populateFunctionOpInterfaceTypeConversionPattern<mlir::func::FuncOp>(patterns, typeConverter);
    mlir::populateCallOpTypeConversionPattern(patterns, typeConverter);
    mlir::populateReturnOpTypeConversionPattern(patterns, typeConverter);
-   dsa::populateDSAToStdPatterns(typeConverter, patterns);
    util::populateUtilTypeConversionPatterns(typeConverter, patterns);
    mlir::scf::populateSCFStructuralTypeConversions(typeConverter, patterns);
    patterns.insert<SimpleTypeConversionPattern<mlir::func::ConstantOp>>(typeConverter, &getContext());
    patterns.insert<SimpleTypeConversionPattern<mlir::arith::SelectOp>>(typeConverter, &getContext());
-   patterns.insert<SetResultOpLowering>(typeConverter, &getContext());
-   patterns.insert<DownCastLowering>(typeConverter, &getContext());
-
+   patterns.insert<ArrayIsValidLowering>(typeConverter, &getContext());
+   patterns.insert<ArrayLoadIntLowering>(typeConverter, &getContext());
+   patterns.insert<BuilderFromPtrLowering>(typeConverter, &getContext());
+   patterns.insert<BuilderAppendIntLowering>(typeConverter, &getContext());
    if (failed(applyFullConversion(module, target, std::move(patterns))))
       signalPassFailure();
 }
@@ -205,4 +231,3 @@ void DSAToStdLoweringPass::runOnOperation() {
 std::unique_ptr<mlir::Pass> lingodb::compiler::dialect::arrow::createLowerToStdPass() {
    return std::make_unique<ArrowToStdLoweringPass>();
 }
- */

@@ -1,5 +1,5 @@
 #include "lingodb/compiler/Conversion/DBToStd/DBToStd.h"
-#include "lingodb/compiler/Conversion/DSAToStd/DSAToStd.h"
+#include "lingodb/compiler/Conversion/ArrowToStd/ArrowToStd.h"
 #include "lingodb/compiler/Conversion/RelAlgToSubOp/RelAlgToSubOpPass.h"
 #include "lingodb/compiler/Conversion/SubOpToControlFlow/SubOpToControlFlowPass.h"
 #include "lingodb/compiler/Dialect/DB/IR/DBDialect.h"
@@ -52,9 +52,9 @@ int main(int argc, char** argv) {
    subop::registerSubOpToControlFlowConversionPasses();
    subop::registerSubOpTransformations();
    //todo
-   /*::mlir::registerPass([]() -> std::unique_ptr<::mlir::Pass> {
-      return dsa::createLowerToStdPass();
-   });*/
+   ::mlir::registerPass([]() -> std::unique_ptr<::mlir::Pass> {
+      return lingodb::compiler::dialect::arrow::createLowerToStdPass();
+   });
    ::mlir::registerPass([]() -> std::unique_ptr<::mlir::Pass> {
       return relalg::createDetachMetaDataPass();
    });

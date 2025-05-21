@@ -1013,7 +1013,8 @@ class ScanRefsTableLowering : public SubOpConversionPattern<subop::ScanRefsOp> {
          return res;
       };
       auto* ctxt = rewriter.getContext();
-      auto recordBatchInfoRepr=mlir::TupleType::get(ctxt, {rewriter.getIndexType(), util::RefType::get(arrow::ArrayType::get(ctxt))});
+      auto i16T=mlir::IntegerType::get(rewriter.getContext(),16);
+      auto recordBatchInfoRepr=mlir::TupleType::get(ctxt, {rewriter.getIndexType(),rewriter.getIndexType(),util::RefType::get(i16T), util::RefType::get(arrow::ArrayType::get(ctxt))});
       ModuleOp parentModule = scanOp->getParentOfType<ModuleOp>();
       mlir::func::FuncOp funcOp;
       static size_t funcIds;
@@ -1030,7 +1031,9 @@ class ScanRefsTableLowering : public SubOpConversionPattern<subop::ScanRefsOp> {
          rewriter.loadStepRequirements(contextPtr, typeConverter);
          recordBatchPointer = rewriter.create<util::GenericMemrefCastOp>(loc, util::RefType::get(getContext(), recordBatchInfoRepr), recordBatchPointer);
          mlir::Value lenRef=rewriter.create<util::TupleElementPtrOp>(loc, util::RefType::get(rewriter.getIndexType()), recordBatchPointer,0);
-         mlir::Value ptrRef=rewriter.create<util::TupleElementPtrOp>(loc, util::RefType::get(util::RefType::get(arrow::ArrayType::get(ctxt))), recordBatchPointer,1);
+         mlir::Value offsetRef=rewriter.create<util::TupleElementPtrOp>(loc, util::RefType::get(rewriter.getIndexType()), recordBatchPointer,1);
+         mlir::Value selVecRef=rewriter.create<util::TupleElementPtrOp>(loc, util::RefType::get(util::RefType::get(i16T)), recordBatchPointer,2);
+         mlir::Value ptrRef=rewriter.create<util::TupleElementPtrOp>(loc, util::RefType::get(util::RefType::get(arrow::ArrayType::get(ctxt))), recordBatchPointer,3);
          mlir::Value ptrToColumns=rewriter.create<util::LoadOp>(loc, ptrRef);
          std::vector<mlir::Value> arrays;
          for(size_t i=0;i<accessedColumnTypes.size();i++){
@@ -1041,10 +1044,12 @@ class ScanRefsTableLowering : public SubOpConversionPattern<subop::ScanRefsOp> {
          auto arraysVal=rewriter.create<util::PackOp>(loc, arrays);
          auto start = rewriter.create<mlir::arith::ConstantIndexOp>(loc, 0);
          auto end = rewriter.create<util::LoadOp>(loc, lenRef);
+         auto globalOffset= rewriter.create<util::LoadOp>(loc, offsetRef);
          auto c1 = rewriter.create<mlir::arith::ConstantIndexOp>(loc, 1);
          auto forOp2 = rewriter.create<mlir::scf::ForOp>(loc, start, end, c1, mlir::ValueRange{});
          rewriter.atStartOf(forOp2.getBody(), [&](SubOpRewriter& rewriter) {
-            auto currentRecord = rewriter.create<util::PackOp>(loc, mlir::ValueRange{forOp2.getInductionVar(), arraysVal});
+            auto withOffset= rewriter.create<mlir::arith::AddIOp>(loc, forOp2.getInductionVar(), globalOffset);
+            auto currentRecord = rewriter.create<util::PackOp>(loc, mlir::ValueRange{withOffset, arraysVal});
             mapping.define(scanOp.getRef(), currentRecord);
             rewriter.replaceTupleStream(scanOp, mapping);
          });

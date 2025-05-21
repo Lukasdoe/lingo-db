@@ -1,11 +1,11 @@
 
 
-add_mlir_conversion_library(MLIRDSAToStd
+add_mlir_conversion_library(MLIRArrowToStd
         LowerToStd.cpp
         DSAToStdPatterns.cpp
 
         ADDITIONAL_HEADER_DIRS
-        ../../../lingodb/compiler/Conversion/DSAToStd
+        ../../../lingodb/compiler/Conversion/ArrowToStd
 
         DEPENDS
         ds-it-rt-defs

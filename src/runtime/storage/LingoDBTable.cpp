@@ -213,6 +213,9 @@ LingoDBTable::TableChunk::TableChunk(std::shared_ptr<arrow::RecordBatch> data, s
             buffers.push_back(nullptr);
          }
       }
+      if (!buffers[0]) {
+         buffers[0] = ArrayView::validData.data();
+      }
       columnInfo.push_back(ArrayView{.length = arrayData->length, .null_count = arrayData->null_count, .offset = arrayData->offset, .n_buffers = static_cast<int64_t>(arrayData->buffers.size()), .n_children = static_cast<int64_t>(arrayData->child_data.size()), .buffers = &buffers[currBufId], .children = nullptr});
    }
 }
