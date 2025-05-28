@@ -1,6 +1,6 @@
 #include "lingodb/runtime/storage/LingoDBTable.h"
 #include "lingodb/catalog/Defs.h"
-//#include "lingodb/runtime/RecordBatchInfo.h"
+#include "lingodb/runtime/ArrowView.h"
 #include "lingodb/scheduler/Tasks.h"
 #include "lingodb/utility/Serialization.h"
 #include "lingodb/utility/Tracer.h"
@@ -16,7 +16,7 @@
 #include <iostream>
 #include <random>
 #include <ranges>
-#include <lingodb/runtime/ArrowView.h>
+
 namespace {
 namespace utility = lingodb::utility;
 static utility::Tracer::Event processMorsel("DataSourceIteration", "processMorsel");
@@ -203,8 +203,8 @@ std::optional<size_t> countDistinctValues(std::shared_ptr<arrow::ChunkedArray> c
 namespace lingodb::runtime {
 LingoDBTable::TableChunk::TableChunk(std::shared_ptr<arrow::RecordBatch> data, size_t startRowId) : internalData(data), startRowId(startRowId), numRows(data->num_rows()) {
    for (auto colId = 0; colId < data->num_columns(); colId++) {
-      auto arrayData = data->column(colId)->data();
-      size_t currBufId = buffers.size();
+      const auto arrayData = data->column(colId)->data();
+      const size_t currBufId = buffers.size();
       for (size_t i = 0; i < arrayData->buffers.size(); i++) {
          auto buffer = arrayData->buffers[i];
          if (buffer) {

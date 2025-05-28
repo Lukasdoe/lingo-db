@@ -1,7 +1,7 @@
 #ifndef LINGODB_RUNTIME_LINGODBHASHINDEX_H
 #define LINGODB_RUNTIME_LINGODBHASHINDEX_H
-#include "lingodb/runtime/Buffer.h"
 #include "lingodb/runtime/ArrowView.h"
+#include "lingodb/runtime/Buffer.h"
 #include "lingodb/runtime/storage/Index.h"
 #include "lingodb/utility/Serialization.h"
 #include <arrow/type_fwd.h>
@@ -72,6 +72,7 @@ class HashIndexAccess {
 class HashIndexIteration {
    HashIndexAccess& access;
    size_t hash;
+   // TODO: do we need raw pointers here?
    LingoDBHashIndex::Entry* current;
    std::vector<ArrayView*> columnViews;
 

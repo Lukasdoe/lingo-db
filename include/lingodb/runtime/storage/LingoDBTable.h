@@ -26,7 +26,7 @@ class LingoDBTable : public TableStorage {
       ArrayView* getArrayView(size_t colId) {
          return &columnInfo[colId];
       }
-      size_t getNumRows() {
+      size_t getNumRows() const {
          return numRows;
       }
       friend class LingoDBTable;

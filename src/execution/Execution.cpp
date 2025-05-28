@@ -2,8 +2,8 @@
 
 #include "lingodb/catalog/IndexCatalogEntry.h"
 #include "lingodb/catalog/TableCatalogEntry.h"
-#include "lingodb/compiler/Conversion/DBToStd/DBToStd.h"
 #include "lingodb/compiler/Conversion/ArrowToStd/ArrowToStd.h"
+#include "lingodb/compiler/Conversion/DBToStd/DBToStd.h"
 #include "lingodb/compiler/Conversion/RelAlgToSubOp/RelAlgToSubOpPass.h"
 #include "lingodb/compiler/Conversion/SubOpToControlFlow/SubOpToControlFlowPass.h"
 #include "lingodb/compiler/Dialect/RelAlg/Passes.h"
@@ -35,7 +35,7 @@ utility::Tracer::Event lowerImperativeEvent("Compilation", "Lower DB");
 utility::Tracer::Event loadIndicesEvent("Compilation", "Lower DB");
 } // end anonymous namespace
 namespace lingodb::execution {
-using namespace lingodb::compiler::dialect;
+using namespace lingodb::compiler;
 class DefaultQueryOptimizer : public QueryOptimizer {
    void optimize(mlir::ModuleOp& moduleOp) override {
       auto start = std::chrono::high_resolution_clock::now();
@@ -45,7 +45,7 @@ class DefaultQueryOptimizer : public QueryOptimizer {
       addLingoDBInstrumentation(pm, getSerializationState());
       //pm.addPass(mlir::createInlinerPass());
       //pm.addPass(mlir::createSymbolDCEPass());
-      relalg::createQueryOptPipeline(pm, catalog);
+      dialect::relalg::createQueryOptPipeline(pm, catalog);
       if (mlir::failed(pm.run(moduleOp))) {
          error.emit() << " Query Optimization failed";
       }
@@ -64,7 +64,7 @@ class RelAlgLoweringStep : public LoweringStep {
       mlir::PassManager lowerRelAlgPm(moduleOp->getContext());
       lowerRelAlgPm.enableVerifier(verify);
       addLingoDBInstrumentation(lowerRelAlgPm, getSerializationState());
-      relalg::createLowerRelAlgToSubOpPipeline(lowerRelAlgPm);
+      dialect::relalg::createLowerRelAlgToSubOpPipeline(lowerRelAlgPm);
       if (mlir::failed(lowerRelAlgPm.run(moduleOp))) {
          error.emit() << "Lowering of RelAlg to Sub-Operators failed";
          return;
@@ -74,7 +74,7 @@ class RelAlgLoweringStep : public LoweringStep {
       utility::Tracer::Trace indexLoadingTrace(loadIndicesEvent);
       // Load the required tables/indices for the query
       moduleOp.walk([&](mlir::Operation* op) {
-         if (auto getExternalOp = mlir::dyn_cast_or_null<subop::GetExternalOp>(*op)) {
+         if (auto getExternalOp = mlir::dyn_cast_or_null<dialect::subop::GetExternalOp>(*op)) {
             auto* catalog = getCatalog();
             auto json = nlohmann::json::parse(getExternalOp.getDescr().str());
             if (json.contains("table")) {
@@ -113,23 +113,23 @@ class SubOpLoweringStep : public LoweringStep {
          enabledPasses.insert(optPass);
       }
       if (enabledPasses.contains("GlobalOpt"))
-         optSubOpPm.addPass(subop::createGlobalOptPass());
-      optSubOpPm.addPass(subop::createFoldColumnsPass());
+         optSubOpPm.addPass(dialect::subop::createGlobalOptPass());
+      optSubOpPm.addPass(dialect::subop::createFoldColumnsPass());
       if (enabledPasses.contains("ReuseLocal"))
-         optSubOpPm.addPass(subop::createReuseLocalPass());
-      optSubOpPm.addPass(subop::createSpecializeSubOpPass(enabledPasses.contains("Specialize")));
-      optSubOpPm.addPass(subop::createNormalizeSubOpPass());
+         optSubOpPm.addPass(dialect::subop::createReuseLocalPass());
+      optSubOpPm.addPass(dialect::subop::createSpecializeSubOpPass(enabledPasses.contains("Specialize")));
+      optSubOpPm.addPass(dialect::subop::createNormalizeSubOpPass());
       if (enabledPasses.contains("PullGatherUp"))
-         optSubOpPm.addPass(subop::createPullGatherUpPass());
-      optSubOpPm.addPass(subop::createEnforceOrderPass());
-      optSubOpPm.addPass(subop::createInlineNestedMapPass());
-      optSubOpPm.addPass(subop::createFinalizePass());
-      optSubOpPm.addPass(subop::createSplitIntoExecutionStepsPass());
+         optSubOpPm.addPass(dialect::subop::createPullGatherUpPass());
+      optSubOpPm.addPass(dialect::subop::createEnforceOrderPass());
+      optSubOpPm.addPass(dialect::subop::createInlineNestedMapPass());
+      optSubOpPm.addPass(dialect::subop::createFinalizePass());
+      optSubOpPm.addPass(dialect::subop::createSplitIntoExecutionStepsPass());
       if (!moduleOp->hasAttr("subop.sequential")) {
-         optSubOpPm.addNestedPass<mlir::func::FuncOp>(subop::createParallelizePass());
-         optSubOpPm.addPass(subop::createSpecializeParallelPass());
+         optSubOpPm.addNestedPass<mlir::func::FuncOp>(dialect::subop::createParallelizePass());
+         optSubOpPm.addPass(dialect::subop::createSpecializeParallelPass());
       }
-      optSubOpPm.addPass(subop::createPrepareLoweringPass());
+      optSubOpPm.addPass(dialect::subop::createPrepareLoweringPass());
       if (mlir::failed(optSubOpPm.run(moduleOp))) {
          error.emit() << "Lowering of Sub-Operators to imperative operations failed";
          return;
@@ -140,8 +140,8 @@ class SubOpLoweringStep : public LoweringStep {
       lowerSubOpPm.enableVerifier(verify);
       addLingoDBInstrumentation(lowerSubOpPm, getSerializationState());
 
-      subop::setCompressionEnabled(enabledPasses.contains("Compression"));
-      lowerSubOpPm.addPass(subop::createLowerSubOpPass());
+      dialect::subop::setCompressionEnabled(enabledPasses.contains("Compression"));
+      lowerSubOpPm.addPass(dialect::subop::createLowerSubOpPass());
       lowerSubOpPm.addPass(mlir::createCanonicalizerPass());
       lowerSubOpPm.addPass(mlir::createCSEPass());
       if (mlir::failed(lowerSubOpPm.run(moduleOp))) {
@@ -162,7 +162,7 @@ class DefaultImperativeLowering : public LoweringStep {
       mlir::PassManager lowerDBPm(moduleOp->getContext());
       lowerDBPm.enableVerifier(verify);
       addLingoDBInstrumentation(lowerDBPm, getSerializationState());
-      db::createLowerDBPipeline(lowerDBPm);
+      dialect::db::createLowerDBPipeline(lowerDBPm);
       if (mlir::failed(lowerDBPm.run(moduleOp))) {
          error.emit() << "Lowering of imperative db operations failed";
          return;
@@ -172,7 +172,7 @@ class DefaultImperativeLowering : public LoweringStep {
       mlir::PassManager lowerDSAPm(moduleOp->getContext());
       lowerDSAPm.enableVerifier(verify);
       addLingoDBInstrumentation(lowerDSAPm, getSerializationState());
-      lowerDSAPm.addPass(arrow::createLowerToStdPass());
+      lowerDSAPm.addPass(dialect::arrow::createLowerToStdPass());
       lowerDSAPm.addPass(mlir::createCanonicalizerPass());
       lowerDSAPm.addPass(mlir::createLoopInvariantCodeMotionPass());
       lowerDSAPm.addPass(mlir::createCSEPass());
@@ -271,7 +271,7 @@ class DefaultQueryExecuter : public QueryExecuter {
          handleTiming(queryOptimizer.getTiming());
          if (queryExecutionConfig->trackTupleCount) {
             mlir::PassManager pm(moduleOp.getContext());
-            pm.addPass(relalg::createTrackTuplesPass());
+            pm.addPass(dialect::relalg::createTrackTuplesPass());
             if (pm.run(moduleOp).failed()) {
                Error e;
                e.emit() << "createTrackTuplesPass failed";

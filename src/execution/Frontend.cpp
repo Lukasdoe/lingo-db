@@ -1,9 +1,9 @@
 #include "lingodb/execution/Frontend.h"
 #include "lingodb/compiler/frontend/SQL/Parser.h"
 
+#include "lingodb/compiler/Dialect/Arrow/IR/ArrowDialect.h"
 #include "lingodb/compiler/Dialect/DB/IR/DBDialect.h"
 #include "lingodb/compiler/Dialect/DB/Passes.h"
-#include "lingodb/compiler/Dialect/Arrow/IR/ArrowDialect.h"
 #include "lingodb/compiler/Dialect/RelAlg/IR/RelAlgDialect.h"
 #include "lingodb/compiler/Dialect/RelAlg/Passes.h"
 #include "lingodb/compiler/Dialect/SubOperator/SubOperatorDialect.h"
@@ -33,21 +33,21 @@
 
 #include <iostream>
 void lingodb::execution::initializeContext(mlir::MLIRContext& context) {
-   using namespace lingodb::compiler::dialect;
+   using namespace lingodb::compiler;
    mlir::DialectRegistry registry;
    registry.insert<mlir::BuiltinDialect>();
-   registry.insert<relalg::RelAlgDialect>();
-   registry.insert<tuples::TupleStreamDialect>();
-   registry.insert<subop::SubOperatorDialect>();
-   registry.insert<db::DBDialect>();
-   registry.insert<arrow::ArrowDialect>();
+   registry.insert<dialect::relalg::RelAlgDialect>();
+   registry.insert<dialect::tuples::TupleStreamDialect>();
+   registry.insert<dialect::subop::SubOperatorDialect>();
+   registry.insert<dialect::db::DBDialect>();
+   registry.insert<dialect::arrow::ArrowDialect>();
    registry.insert<mlir::func::FuncDialect>();
    registry.insert<mlir::arith::ArithDialect>();
    registry.insert<mlir::cf::ControlFlowDialect>();
    registry.insert<mlir::DLTIDialect>();
 
    registry.insert<mlir::memref::MemRefDialect>();
-   registry.insert<util::UtilDialect>();
+   registry.insert<dialect::util::UtilDialect>();
    registry.insert<mlir::scf::SCFDialect>();
    registry.insert<mlir::LLVM::LLVMDialect>();
 
@@ -60,7 +60,7 @@ void lingodb::execution::initializeContext(mlir::MLIRContext& context) {
    mlir::registerAllToLLVMIRTranslations(registry);
    context.appendDialectRegistry(registry);
    context.loadAllAvailableDialects();
-   context.loadDialect<relalg::RelAlgDialect>();
+   context.loadDialect<dialect::relalg::RelAlgDialect>();
    context.disableMultithreading();
 }
 namespace {
