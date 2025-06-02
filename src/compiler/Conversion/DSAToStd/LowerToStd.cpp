@@ -112,8 +112,8 @@ class BuilderAppendIntLowering : public OpConversionPattern<arrow::AppendIntOp> 
    public:
    using OpConversionPattern<arrow::AppendIntOp>::OpConversionPattern;
    LogicalResult matchAndRewrite(arrow::AppendIntOp op, OpAdaptor adaptor, ConversionPatternRewriter& rewriter) const override {
-      auto intType = op.getValue().getType();
-      auto loc = op.getLoc();
+      const auto intType = op.getValue().getType();
+      const auto loc = op.getLoc();
       auto builderVal = adaptor.getBuilder();
       auto isValid = adaptor.getValid();
       if (!isValid) {
@@ -129,6 +129,22 @@ class BuilderAppendIntLowering : public OpConversionPattern<arrow::AppendIntOp> 
       }
       rewriter.eraseOp(op);
 
+      return success();
+   }
+};
+class BuilderAppendTimestampLowering : public OpConversionPattern<arrow::AppendTimestampOp> {
+   public:
+   using OpConversionPattern<arrow::AppendTimestampOp>::OpConversionPattern;
+   LogicalResult matchAndRewrite(arrow::AppendTimestampOp op, OpAdaptor adaptor, ConversionPatternRewriter& rewriter) const override {
+      const auto loc = op.getLoc();
+      auto builderVal = adaptor.getBuilder();
+      auto isValid = adaptor.getValid();
+      if (!isValid) {
+         isValid = rewriter.create<mlir::arith::ConstantIntOp>(loc, 1, 1);
+      }
+      auto val = adaptor.getValue();
+      rt::ArrowColumnBuilder::addInt64(rewriter, loc)({builderVal, isValid, val});
+      rewriter.eraseOp(op);
       return success();
    }
 };
@@ -224,6 +240,7 @@ void ArrowToStdLoweringPass::runOnOperation() {
    patterns.insert<ArrayLoadIntLowering>(typeConverter, &getContext());
    patterns.insert<BuilderFromPtrLowering>(typeConverter, &getContext());
    patterns.insert<BuilderAppendIntLowering>(typeConverter, &getContext());
+   patterns.insert<BuilderAppendTimestampLowering>(typeConverter, &getContext());
    if (failed(applyFullConversion(module, target, std::move(patterns))))
       signalPassFailure();
 }

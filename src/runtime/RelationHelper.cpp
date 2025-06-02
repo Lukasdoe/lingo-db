@@ -18,24 +18,24 @@ namespace lingodb::runtime {
 void RelationHelper::createTable(lingodb::runtime::VarLen32 meta) {
    auto* context = getCurrentExecutionContext();
    auto& session = context->getSession();
-   auto catalog = session.getCatalog();
-   auto def = utility::deserializeFromHexString<lingodb::catalog::CreateTableDef>(meta.str());
-   auto relation = lingodb::catalog::LingoDBTableCatalogEntry::createFromCreateTable(def);
+   const auto catalog = session.getCatalog();
+   const auto def = utility::deserializeFromHexString<lingodb::catalog::CreateTableDef>(meta.str());
+   const auto relation = lingodb::catalog::LingoDBTableCatalogEntry::createFromCreateTable(def);
    catalog->insertEntry(relation);
    if (!def.primaryKey.empty()) {
-      auto index = lingodb::catalog::LingoDBHashIndexEntry::createForPrimaryKey(def.name, def.primaryKey);
+      const auto index = lingodb::catalog::LingoDBHashIndexEntry::createForPrimaryKey(def.name, def.primaryKey);
       catalog->insertEntry(index);
       relation->addIndex(index->getName());
    }
    catalog->persist();
 }
-void RelationHelper::appendToTable(runtime::Session& session, std::string tableName, std::shared_ptr<arrow::Table> table) {
-   auto catalog = session.getCatalog();
-   if (auto relation = catalog->getTypedEntry<catalog::TableCatalogEntry>(tableName)) {
-      auto startRowId = relation.value()->getTableStorage().nextRowId();
+void RelationHelper::appendToTable(runtime::Session& session, const std::string& tableName, const std::shared_ptr<arrow::Table>& table) {
+   const auto catalog = session.getCatalog();
+   if (const auto relation = catalog->getTypedEntry<catalog::TableCatalogEntry>(tableName)) {
+      const auto startRowId = relation.value()->getTableStorage().nextRowId();
       relation.value()->getTableStorage().append(table);
-      for (auto idx : relation.value()->getIndices()) {
-         if (auto index = catalog->getTypedEntry<catalog::IndexCatalogEntry>(idx.first)) {
+      for (const auto& [name, _] : relation.value()->getIndices()) {
+         if (auto index = catalog->getTypedEntry<catalog::IndexCatalogEntry>(name)) {
             index.value()->getIndex().bulkInsert(startRowId, table);
          }
       }
@@ -44,16 +44,14 @@ void RelationHelper::appendToTable(runtime::Session& session, std::string tableN
       throw std::runtime_error("appending result table failed: no such table");
    }
 }
-void RelationHelper::appendTableFromResult(lingodb::runtime::VarLen32 tableName, size_t resultId) {
+void RelationHelper::appendTableFromResult(lingodb::runtime::VarLen32 tableName, const size_t resultId) {
    auto* context = getCurrentExecutionContext();
-   {
-      auto resultTable = context->getResultOfType<lingodb::runtime::ArrowTable>(resultId);
-      if (!resultTable) {
-         throw std::runtime_error("appending result table failed: no result table");
-      }
-      auto& session = context->getSession();
-      appendToTable(session, tableName.str(), resultTable.value()->get());
+   const auto resultTable = context->getResultOfType<lingodb::runtime::ArrowTable>(resultId);
+   if (!resultTable) {
+      throw std::runtime_error("appending result table failed: no result table");
    }
+   auto& session = context->getSession();
+   appendToTable(session, tableName.str(), resultTable.value()->get());
 }
 void RelationHelper::copyFromIntoTable(lingodb::runtime::VarLen32 tableName, lingodb::runtime::VarLen32 fileName, lingodb::runtime::VarLen32 delimiter, lingodb::runtime::VarLen32 escape) {
    auto* context = getCurrentExecutionContext();

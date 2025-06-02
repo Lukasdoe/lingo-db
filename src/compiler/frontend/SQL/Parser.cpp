@@ -367,6 +367,7 @@ mlir::Value frontend::sql::Parser::translateFuncCallExpression(Node* node, mlir:
    throw std::runtime_error("could not translate func call");
    return mlir::Value();
 }
+
 std::pair<mlir::Value, frontend::sql::Parser::TargetInfo> frontend::sql::Parser::translateConstRelation(List* valuesLists, mlir::OpBuilder& builder) {
    size_t numColumns = 0;
    std::vector<mlir::Type> globalTypes;
@@ -426,6 +427,36 @@ std::pair<mlir::Value, frontend::sql::Parser::TargetInfo> frontend::sql::Parser:
                values.push_back(value);
                break;
             }
+            // case T_TypeCast: {
+            //    // const auto* typeCastExpr = reinterpret_cast<TypeCast*>(expr);
+            //    // const TypeName* typeName = typeCastExpr->type_name_;
+            //    // if (typeCastExpr->arg_->type != T_A_Const) {
+            //    //    throw std::runtime_error("could not handle typecast with non-constant argument");
+            //    // }
+            //    // const auto* arg = reinterpret_cast<const A_Const*>(typeCastExpr->arg_);
+            //    // if (typeName->names_ == nullptr || typeName->names_->length != 2 || typeName->names_->head == nullptr || std::string(static_cast<const char*>(typeName->names_->head->data.ptr_value)) != "pg_catalog" || typeName->names_->head->next == nullptr) {
+            //    //    throw std::runtime_error("could not handle typecast");
+            //    // }
+            //    // const auto* toTypeName = static_cast<const char*>(typeName->names_->head->next->data.ptr_value);
+            //    // if (toTypeName == "timestamp") {
+            //    // if (arg->type_ != T_String) {
+            //    //    throw std::runtime_error("could not handle non-string typecast to timestamp");
+            //    // }
+            //    types.push_back(db::TimestampType::get(builder.getContext(), db::TimeUnitAttr::second));
+            //    // std::istringstream stringVal{arg->val_.val_.str_};
+            //    // std::tm timestamp;
+            //    // stringVal >> std::get_time(&timestamp, "'%Y-%m-%d %H:%M:%S'");
+            //    // if (stringVal.fail()) {
+            //    //    throw std::runtime_error("could not parse timestamp from string: " + std::string{arg->val_.val_.str_});
+            //    // }
+            //    // const std::time_t timeStamp = std::mktime(&timestamp);
+            //    const llvm::Twine timeStamp = "2024-06-01 10:00:00"; // Placeholder for actual timestamp parsing
+            //    values.push_back(builder.getStringAttr(timeStamp));
+            //    // } else {
+            //    //    throw std::runtime_error("could not handle typecast from " + std::string(toTypeName));
+            //    // }
+            //    break;
+            // }
             default: {
                throw std::runtime_error("could not handle values content");
             }
