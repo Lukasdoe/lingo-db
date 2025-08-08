@@ -143,19 +143,18 @@ namespace lingodb::execution::baseline {
                         }); // all other types are not supported yet
             }
 
-            tpde::RegBank reg_bank(uint32_t part_idx) const noexcept {
-                return mlir::TypeSwitch<mlir::Type, tpde::RegBank>(valType)
-                        .Case<mlir::IntegerType, mlir::IndexType, dialect::util::RefType, mlir::FunctionType,
-                            dialect::util::VarLen32Type, dialect::util::BufferType>([&](auto) {
-                            return Config::GP_BANK;
-                        })
-                        .template Case<mlir::FloatType>([](auto) { return Config::FP_BANK; })
-
-                        .Default([](mlir::Type t) {
-                            t.dump();
-                            assert(0 && "invalid type");
-                            return Config::GP_BANK;
-                        });
+            tpde::RegBank reg_bank(uint32_t) const noexcept {
+               return mlir::TypeSwitch<mlir::Type, tpde::RegBank>(valType)
+                  .Case<mlir::IntegerType, mlir::IndexType, dialect::util::RefType, mlir::FunctionType,
+                        dialect::util::VarLen32Type, dialect::util::BufferType>([&](auto) {
+                     return Config::GP_BANK;
+                  })
+                  .template Case<mlir::FloatType>([](auto) { return Config::FP_BANK; })
+                  .Default([](mlir::Type t) {
+                     t.dump();
+                     assert(0 && "invalid type");
+                     return Config::GP_BANK;
+                  });
             }
         };
 
@@ -1388,6 +1387,34 @@ namespace lingodb::execution::baseline {
             return ret;
         }
 
+        llvm::DenseMap<mlir::Value, std::vector<mlir::Value>> packed_tuples;
+
+        bool compile_util_pack_op(dialect::util::PackOp op) {
+           mlir::Value tuple = op.getTuple();
+           packed_tuples.insert({tuple, {}});
+           for (const mlir::Value val : op.getVals()) {
+              packed_tuples[tuple].push_back(val);
+           }
+           return true;
+        }
+
+        bool compile_util_get_tuple_op(dialect::util::GetTupleOp op) {
+           const mlir::Value tuple = op.getTuple();
+           const auto it = packed_tuples.find(tuple);
+           if (it == packed_tuples.end()) {
+              error.emit() << "Tuple not found in packed tuples map";
+              return false;
+           }
+           const auto& vals = it->second;
+           const uint32_t offset = op.getOffset();
+           assert(vals.size() > offset && "Offset out of bounds for packed tuple");
+           mlir::Value val = vals[offset];
+           auto [_, val_vpr] = this->val_ref_single(val);
+           auto res = this->result_ref(op.getResult());
+           res.part(0).set_value(std::move(val_vpr));
+           return true;
+        }
+
         bool compile_inst(const IRInstRef inst, InstRange) noexcept {
             return mlir::TypeSwitch<IRInstRef, bool>(inst)
                     .Case<mlir::arith::AddIOp, mlir::arith::SubIOp, mlir::arith::MulIOp, mlir::arith::DivSIOp,
@@ -1479,14 +1506,19 @@ namespace lingodb::execution::baseline {
                     })
                     .template Case<mlir::arith::UIToFPOp>([&](auto op) {
                         return compile_arith_sitofp_op(op, false);
-                    })
-                    .template Case<dialect::util::VarLenCmp>([&](auto op) { return compile_util_varlen_cmp_op(op); })
-                    .Default([&](IRInstRef op) {
-                        error.emit() << "Encountered unimplemented instruction: " << op->getName().getStringRef().
-                                str()
-                                << "\n";
-                        return false;
-                    });
+              })
+              .template Case<dialect::util::GetTupleOp>([&](auto op) {
+                 return compile_util_get_tuple_op(op);
+              })
+              .template Case<dialect::util::PackOp>([&](auto op) {
+                 return compile_util_pack_op(op);
+              })
+              .template Case<dialect::util::VarLenCmp>([&](auto op) { return compile_util_varlen_cmp_op(op); })
+              .Default([&](IRInstRef op) {
+                 error.emit() << "Encountered unimplemented instruction: " << op->getName().getStringRef().str()
+                              << "\n";
+                 return false;
+              });
         }
     };
 
