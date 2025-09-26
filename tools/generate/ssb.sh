@@ -1,5 +1,17 @@
 #!/usr/bin/env bash
 set -euo pipefail
+
+if [[ $# -lt 2 ]]; then
+  echo "Usage: $0 <output_dir> <scale_factor>"
+  exit 1
+fi
+
+if [[ "$1" = /* ]]; then
+  OUTDIR="$1"
+else
+  OUTDIR="$(realpath "$1")"
+fi
+
 TMPDIR=`mktemp --directory`
 echo $TMPDIR
 pushd $TMPDIR
@@ -19,5 +31,7 @@ for table in ./*.tbl; do
   else
     sed -i 's/|$//' "$table"     # Linux
   fi
-for table in ./*.tbl; do mv "$table" "$1/$table"; done
+done
+mkdir -p "$OUTDIR"
+for table in ./*.tbl; do mv "$table" "$OUTDIR/$table"; done
 popd

@@ -1,5 +1,17 @@
 #!/usr/bin/env bash
 set -euo pipefail
+
+if [[ $# -lt 2 ]]; then
+  echo "Usage: $0 <output_dir> <scale_factor>"
+  exit 1
+fi
+
+if [[ "$1" = /* ]]; then
+  OUTDIR="$1"
+else
+  OUTDIR="$(realpath "$1")"
+fi
+
 TMPDIR=`mktemp --directory`
 echo $TMPDIR
 cp  tools/scripts/ssb_convert_to_simplified.py $TMPDIR/ssb_convert_to_simplified.py
@@ -21,7 +33,9 @@ for table in ./*.tbl; do
   else
     sed -i 's/|$//' "$table"     # Linux
   fi
+done
 python3 ssb_convert_to_simplified.py ./
 
-for table in ./*.tbl; do mv "$table" "$1/$table"; done
+mkdir -p "$OUTDIR"
+for table in ./*.tbl; do mv "$table" "$OUTDIR/$table"; done
 popd
