@@ -12,6 +12,12 @@ SF=$2
 ./dbgen -qf -T s -s "$SF"
 ./dbgen -q -T l -s "$SF"
 chmod +r *.tbl
-for table in ./*.tbl; do  sed -i 's/|$//' "$table"; done
+for table in ./*.tbl; do
+  # sed behaves differently on macOS and linux. Currently, there is no stable, portable command that works on both.
+  if [[ "$OSTYPE" == "darwin"* ]]; then
+    sed -i '' 's/|$//' "$table"  # macOS
+  else
+    sed -i 's/|$//' "$table"     # Linux
+  fi
 for table in ./*.tbl; do mv "$table" "$1/$table"; done
 popd
